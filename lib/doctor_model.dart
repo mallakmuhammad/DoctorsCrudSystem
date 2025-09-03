@@ -1,3 +1,16 @@
+const List<String> specialtiesList = [
+  "Cardiologist",
+  "Dermatologist",
+  "Pediatrician",
+  "Neurologist",
+  "Psychiatrist",
+  "Dentist",
+  "Orthopedic",
+  "Surgeon",
+  "Ophthalmologist",
+  "General Practitioner"
+  ];
+  
 class Doctor {
   final String? id;
   final String name;
@@ -28,3 +41,4 @@ class Doctor {
     };
   }
 }
+

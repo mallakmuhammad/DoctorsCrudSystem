@@ -16,24 +16,33 @@ class DoctorListPage extends StatefulWidget {
 }
 
 class _DoctorListPageState extends State<DoctorListPage> {
+
+  String selectedFilter = "All"; //select filter default
+
   @override
-  void initState() {
-    super.initState();
+    void initState() {
+
+    super.initState(); //Load Doctors page once the page is opened.
+
     Future.microtask(
       () => Provider.of<DoctorProvider>(context, listen: false).fetchDoctors(),
-    );
+            );
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<DoctorProvider>(context);
 
+    final filteredDoctors = selectedFilter == "All" //filter doctors depending on their speciality
+        ? provider.doctors
+        : provider.doctors
+            .where((doc) => doc.specialty == selectedFilter)
+            .toList();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          '🩺 Doctor Directory',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('🩺 Doctor Directory',
+        style: TextStyle(fontWeight: FontWeight.bold),),
         centerTitle: true,
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -54,10 +63,31 @@ class _DoctorListPageState extends State<DoctorListPage> {
             end: Alignment.bottomCenter,
           ),
         ),
+
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
+              DropdownButtonFormField<String>(
+                value: selectedFilter,
+                items: ["All", ...specialtiesList].map((spec) {
+                  return DropdownMenuItem(
+                    value: spec,
+                    child: Text(spec),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedFilter = value!;
+                  });
+                },
+                decoration: const InputDecoration(
+                  labelText: 'Filter by Specialty',
+                  prefixIcon: Icon(Icons.filter_list),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               Align(
                 alignment: Alignment.center,
                 child: ElevatedButton.icon(
@@ -81,11 +111,27 @@ class _DoctorListPageState extends State<DoctorListPage> {
                 ),
               ),
               const SizedBox(height: 16),
+
+
               Expanded(
-                child: ListView.builder(
-                  itemCount: provider.doctors.length,
+
+                child: filteredDoctors.isEmpty //If the specialty doesn't have doctors inside it
+                    ? const Center(
+                        child: Text(
+                          "No Doctors Found",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      )
+
+                : ListView.builder(
+                
+                  itemCount: filteredDoctors.length,
                   itemBuilder: (context, index) {
-                    final doc = provider.doctors[index];
+                    final doc = filteredDoctors[index];
                     return Container(
                       margin: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
@@ -150,129 +196,167 @@ class _DoctorListPageState extends State<DoctorListPage> {
 
   void _showDoctorForm(BuildContext context, {Doctor? doctor}) {
     final nameController = TextEditingController(text: doctor?.name ?? '');
-    final specialtyController = TextEditingController(
-      text: doctor?.specialty ?? '',
-    );
+
+    String? selectedSpecialty = doctor?.specialty;
+
     Uint8List? selectedImageBytes;
 
-    showDialog(
+showDialog(
       context: context,
-      builder:
-          (_) => StatefulBuilder(
-            builder:
-                (context, setState) => AlertDialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: Text(
-                    doctor == null ? '➕ Add New Doctor' : '✏️ Edit Doctor',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Name',
-                            prefixIcon: Icon(Icons.person),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: specialtyController,
-                          decoration: const InputDecoration(
-                            labelText: 'Specialty',
-                            prefixIcon: Icon(Icons.medical_services),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          icon: const Icon(Icons.upload),
-                          label: Text(
-                            selectedImageBytes == null
-                                ? 'Choose Image'
-                                : 'Image Selected',
-                          ),
-                          onPressed: () async {
-                            final bytesFromPicker =
-                                await ImagePickerWeb.getImageAsBytes();
-                            if (bytesFromPicker != null) {
-                              setState(() {
-                                selectedImageBytes = bytesFromPicker;
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (nameController.text.isEmpty ||
-                            specialtyController.text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please fill all fields'),
-                            ),
-                          );
-                          return;
-                        }
-                        try {
-                          String imageUrl = doctor?.imageUrl ?? '';
-                          if (selectedImageBytes != null) {
-                            imageUrl = await uploadToCloudinary(
-                              selectedImageBytes!,
-                            );
-                          }
-
-                          final newDoctor = Doctor(
-                            id: doctor?.id,
-                            name: nameController.text,
-                            specialty: specialtyController.text,
-                            imageUrl: imageUrl,
-                          );
-
-                          if (doctor == null) {
-                            await Provider.of<DoctorProvider>(
-                              context,
-                              listen: false,
-                            ).addDoctor(newDoctor);
-                          } else {
-                            await Provider.of<DoctorProvider>(
-                              context,
-                              listen: false,
-                            ).updateDoctor(newDoctor);
-                          }
-
-                          Navigator.pop(context);
-                        } catch (e) {
-                          print('🔥 Upload error: $e');
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Error saving doctor.'),
-                            ),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
+            doctor == null ? '➕ Add New Doctor' : '✏️ Edit Doctor',
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Name
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Dropdown Specialty
+                DropdownButtonFormField<String>(
+                  value: (selectedSpecialty != null &&
+                          specialtiesList.contains(selectedSpecialty))
+                      ? selectedSpecialty
+                      : null,
+                  items: specialtiesList
+                      .map((spec) => DropdownMenuItem(
+                            value: spec,
+                            child: Text(spec),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      selectedSpecialty = value;
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    labelText: 'Specialty',
+                    prefixIcon: Icon(Icons.medical_services),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Pick Image (اختياري)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.upload),
+                  label: Text(
+                    selectedImageBytes == null ? 'Choose Image' : 'Image Selected',
+                  ),
+                  onPressed: () async {
+                    final bytesFromPicker = await ImagePickerWeb.getImageAsBytes();
+                    if (bytesFromPicker != null) {
+                      setState(() {
+                        selectedImageBytes = bytesFromPicker;
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Save'),
+              onPressed: () async {
+
+                // Check the entered data
+                if (nameController.text.isEmpty || selectedSpecialty == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please fill all fields')),
+                  );
+                  return;
+                }
+
+                try {
+
+                  final provider = Provider.of<DoctorProvider>(context, listen: false);
+
+                  // ✅ Check if doctor already exists
+                  final exists = provider.doctors.any((doc) =>
+                  doc.name.toLowerCase() == nameController.text.toLowerCase().trim() &&
+                  doc.specialty == selectedSpecialty);
+
+      if (exists) {
+        //Pop-up Message
+          showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text("Duplicate Doctor"),
+      content: const Text("This doctor already exists!"),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+          },
+          child: const Text("OK"),
+        ),
+      ],
+    ),
+  );
+        return;
+        }     
+                  String imageUrl = doctor?.imageUrl ?? '';
+                  if (selectedImageBytes != null) {
+                    imageUrl = await uploadToCloudinary(selectedImageBytes!);
+                  }
+                  if (imageUrl.isEmpty) {
+                    imageUrl = 'https://via.placeholder.com/150';
+                  }
+
+                  final newDoctor = Doctor(
+                    id: doctor?.id,
+                    name: nameController.text,
+                    specialty: selectedSpecialty!, // قيمة واحدة من الـ Dropdown
+                    imageUrl: imageUrl,
+                  );
+
+                  if (doctor == null) {
+                    await Provider.of<DoctorProvider>(context, listen: false)
+                        .addDoctor(newDoctor);
+                  } else {
+                    await Provider.of<DoctorProvider>(context, listen: false)
+                        .updateDoctor(newDoctor);
+                  }
+
+                  if (context.mounted) Navigator.pop(context);
+                } catch (e) {
+                  // ignore: avoid_print
+                  print('🔥 Save error: $e');
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Error saving doctor.')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
     );
+
   }
 
   Future<String> uploadToCloudinary(Uint8List imageBytes) async {
