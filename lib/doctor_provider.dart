@@ -3,18 +3,28 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'doctor_model.dart';
 
 class DoctorProvider with ChangeNotifier {
-  final _collection = FirebaseFirestore.instance.collection('doctors');
+final _collection = FirebaseFirestore.instance
+    .collection('doctors')
+    .doc('ecUkoQVD6UcIJgpJ0ehf') 
+    .collection('doctors');
   List<Doctor> _doctors = [];
 
   List<Doctor> get doctors => _doctors;
 
-  Future<void> fetchDoctors() async {
+Future<void> fetchDoctors() async {
+  try {
     final snapshot = await _collection.get();
-    _doctors = snapshot.docs
-        .map((doc) => Doctor.fromJson(doc.data(), doc.id))
-        .toList();
+    print('Total docs: ${snapshot.docs.length}');
+    _doctors = snapshot.docs.map((doc) {
+      final doctor = Doctor.fromJson(doc.data(), doc.id);
+      print('Fetched: ${doctor.name}');
+      return doctor;
+    }).toList();
     notifyListeners();
+  } catch (e) {
+    print('Error fetching doctors: $e');
   }
+}
 
   Future<void> addDoctor(Doctor doctor) async {
     await _collection.add(doctor.toJson());
